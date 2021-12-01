@@ -84,6 +84,7 @@ export const App: React.FunctionComponent = () => {
     resetExpressionDefinition: (definition: ExpressionProps) => setExpressionDefinition(definition),
     broadcastLiteralExpressionDefinition: (definition: LiteralExpressionProps) => {
       setExpressionDefinition(definition);
+      setOtherExpression(definition);
     },
     broadcastRelationExpressionDefinition: (definition: RelationProps) => setExpressionDefinition(definition),
     broadcastContextExpressionDefinition: (definition: ContextProps) => setExpressionDefinition(definition),
