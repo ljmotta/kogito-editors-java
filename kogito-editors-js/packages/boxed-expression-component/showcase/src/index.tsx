@@ -15,12 +15,13 @@
  */
 
 import * as React from "react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import * as ReactDOM from "react-dom";
 import "./index.css";
+import { I18nDictionariesProvider } from "@kogito-tooling/i18n/dist/react-components";
 // noinspection ES6PreferShortImport
 import {
-  BoxedExpressionEditor,
+  BoxedExpressionProvider,
   ContextProps,
   DataType,
   DecisionTableProps,
@@ -32,10 +33,13 @@ import {
   LogicType,
   RelationProps,
 } from "./lib";
-import { Button, Modal } from "@patternfly/react-core";
-import { CopyIcon, PenIcon } from "@patternfly/react-icons";
 import "./lib/components/BoxedExpressionEditor/base-no-reset-wrapped.css";
-import ReactJson from "react-json-view";
+import { LiteralExpression } from "./lib/components/LiteralExpression";
+import {
+  boxedExpressionEditorDictionaries,
+  BoxedExpressionEditorI18nContext,
+  boxedExpressionEditorI18nDefaults,
+} from "./lib/i18n";
 
 export const App: React.FunctionComponent = () => {
   //This definition comes directly from the decision node
@@ -73,15 +77,14 @@ export const App: React.FunctionComponent = () => {
   ];
 
   const [expressionDefinition, setExpressionDefinition] = useState(selectedExpression);
-
-  const [typedExpressionDefinition, setTypedExpressionDefinition] = useState(JSON.stringify(selectedExpression));
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [otherExpression, setOtherExpression] = useState(selectedExpression);
 
   //Defining global function that will be available in the Window namespace and used by the BoxedExpressionEditor component
   window.beeApi = {
     resetExpressionDefinition: (definition: ExpressionProps) => setExpressionDefinition(definition),
-    broadcastLiteralExpressionDefinition: (definition: LiteralExpressionProps) => setExpressionDefinition(definition),
+    broadcastLiteralExpressionDefinition: (definition: LiteralExpressionProps) => {
+      setExpressionDefinition(definition);
+    },
     broadcastRelationExpressionDefinition: (definition: RelationProps) => setExpressionDefinition(definition),
     broadcastContextExpressionDefinition: (definition: ContextProps) => setExpressionDefinition(definition),
     broadcastListExpressionDefinition: (definition: ListProps) => setExpressionDefinition(definition),
@@ -90,89 +93,41 @@ export const App: React.FunctionComponent = () => {
     broadcastDecisionTableExpressionDefinition: (definition: DecisionTableProps) => setExpressionDefinition(definition),
   };
 
-  const copyToClipboard = useCallback(
-    () => navigator.clipboard.writeText(JSON.stringify(expressionDefinition)),
-    [expressionDefinition]
-  );
-
-  const onTypedExpressionChange = useCallback((e) => {
-    setTypedExpressionDefinition(e.target.value);
-  }, []);
-
-  const handleModalToggle = useCallback(() => {
-    setIsModalOpen((isModalOpen) => {
-      const goingToOpenTheModal = !isModalOpen;
-      if (goingToOpenTheModal) {
-        setTypedExpressionDefinition(JSON.stringify(expressionDefinition));
-      }
-      return goingToOpenTheModal;
-    });
-  }, [expressionDefinition]);
-
-  const updateExpressionDefinition = useCallback(() => {
-    try {
-      const parsedTypedExpression = JSON.parse(typedExpressionDefinition);
-      setExpressionDefinition({ logicType: LogicType.Undefined });
-      setTimeout(() => {
-        setExpressionDefinition(parsedTypedExpression);
-      }, 0);
-      setIsModalOpen(false);
-    } catch (e) {
-      console.error(e);
-    }
-  }, [typedExpressionDefinition]);
-
   return (
     <div className="showcase">
       <div className="boxed-expression">
-        <BoxedExpressionEditor expressionDefinition={expressionDefinition} pmmlParams={pmmlParams} />
+        <I18nDictionariesProvider
+          defaults={boxedExpressionEditorI18nDefaults}
+          dictionaries={boxedExpressionEditorDictionaries}
+          initialLocale={navigator.language}
+          ctx={BoxedExpressionEditorI18nContext}
+        >
+          <BoxedExpressionProvider
+            expressionDefinition={expressionDefinition}
+            isRunnerTable={false}
+            pmmlParams={pmmlParams}
+          >
+            <div className="expression-container">
+              <div className="expression-container-box" data-ouia-component-id="expression-container">
+                <LiteralExpression
+                  {...(expressionDefinition as LiteralExpressionProps)}
+                  logicType={LogicType.LiteralExpression}
+                />
+              </div>
+            </div>
+          </BoxedExpressionProvider>
+          <BoxedExpressionProvider expressionDefinition={otherExpression} isRunnerTable={false} pmmlParams={pmmlParams}>
+            <div className="expression-container">
+              <div className="expression-container-box" data-ouia-component-id="expression-container">
+                <LiteralExpression
+                  {...(otherExpression as LiteralExpressionProps)}
+                  logicType={LogicType.LiteralExpression}
+                />
+              </div>
+            </div>
+          </BoxedExpressionProvider>
+        </I18nDictionariesProvider>
       </div>
-
-      <div className="updated-json">
-        <div className="buttons">
-          <Button
-            variant="secondary"
-            icon={<CopyIcon />}
-            iconPosition="left"
-            onClick={copyToClipboard}
-            ouiaId="copy-expression-json"
-          />
-          <Button
-            variant="secondary"
-            icon={<PenIcon />}
-            iconPosition="left"
-            onClick={handleModalToggle}
-            ouiaId="edit-expression-json"
-          />
-        </div>
-
-        <pre>
-          <ReactJson src={expressionDefinition} name={false} />
-        </pre>
-      </div>
-
-      <Modal
-        title="Manually edit Expression Definition"
-        className="expression-definition-editor-modal"
-        isOpen={isModalOpen}
-        onClose={handleModalToggle}
-        description="This modal is supposed to provide a manual edit option for the expression definition. If «Confirm» action does nothing, probably there is an issue with JSON definition parsing: look at browser's console."
-        actions={[
-          <Button key="confirm" variant="primary" onClick={updateExpressionDefinition} ouiaId="confirm-expression-json">
-            Confirm
-          </Button>,
-          <Button key="cancel" variant="link" onClick={handleModalToggle}>
-            Cancel
-          </Button>,
-        ]}
-      >
-        <textarea
-          className="typed-expression"
-          value={typedExpressionDefinition}
-          onChange={onTypedExpressionChange}
-          data-ouia-component-id="typed-expression-json"
-        />
-      </Modal>
     </div>
   );
 };
